@@ -5,7 +5,7 @@ from astrbot.api.platform import MessageType
 from astrbot.api import logger, AstrBotConfig 
 import re 
 
-@register("astrbot_plugin_tool_customed_active_reply_prompt", "zz6zz666", "自定义群聊主动回复提示词", "1.0.0") 
+@register("customed_reply_prompt", "zz6zz666", "自定义群聊主动回复提示词", "1.0.0") 
 class CustomedReplyPromptPlugin(Star): 
     def __init__(self, context: Context, config: AstrBotConfig): 
         super().__init__(context) 
@@ -25,7 +25,7 @@ class CustomedReplyPromptPlugin(Star):
             logger.error(f"获取主动回复配置失败: {e}") 
             return False 
             
-    @filter.on_llm_request(priority=-100)    # 优先级设为-100，确保在long_term_memory.py之后执行 
+    @filter.on_llm_request(priority=-10)    # 优先级设为-10，确保在long_term_memory.py之后执行 
     async def process_user_prompt(self, event: AstrMessageEvent, req: ProviderRequest): 
         """ 
         在群聊场景下，当启用主动回复功能时， 
