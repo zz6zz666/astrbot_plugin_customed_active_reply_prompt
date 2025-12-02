@@ -25,63 +25,38 @@ class CustomedReplyPromptPlugin(Star):
             logger.error(f"获取主动回复配置失败: {e}") 
             return False 
             
-    @filter.on_llm_request(priority=10)    # 优先级设为10，确保在long_term_memory.py之前执行 
-    async def process_user_prompt(self, event: AstrMessageEvent, req: ProviderRequest): 
-        """ 
-        在群聊场景下，当启用主动回复功能时， 
-        存储原始prompt，以便后续long_term_memory.py处理后可以正确替换提示词
-        """ 
-        # 检查是否是群聊消息
-        if event.get_message_type() != MessageType.GROUP_MESSAGE: 
-            logger.debug(f"非群聊消息，跳过提示词预处理")
-            return 
-        
-        # 检查是否启用了主动回复功能
-        if not self._is_active_reply_enabled(event): 
-            logger.debug(f"主动回复功能未启用，跳过提示词预处理")
-            return
-        
-        # 存储原始prompt，以便在后置处理中使用
-        # 使用临时属性存储，避免与现有属性冲突
-        setattr(req, "_original_prompt", req.prompt)
-        logger.debug(f"已存储原始prompt用于后续处理")
-        
-    @filter.on_llm_request(priority=-10)    # 优先级设为-10，确保在long_term_memory.py之后执行 
+    @filter.on_llm_request(priority=-100)    # 优先级设为-100，确保在所有其他on_llm_request处理器之后执行 
     async def replace_reply_prompt(self, event: AstrMessageEvent, req: ProviderRequest):
         """
-        在long_term_memory.py处理后，替换主动回复提示词
+        在所有LLM请求处理后，特别是在long_term_memory.py处理后，替换主动回复提示词
         """
         # 检查是否是群聊消息
         if event.get_message_type() != MessageType.GROUP_MESSAGE: 
+            logger.debug(f"自定义主动回复插件：非群聊消息，跳过处理")
             return
         
         # 检查是否启用了主动回复功能
         if not self._is_active_reply_enabled(event): 
-            return
-        
-        # 检查是否有原始prompt（说明前置处理已经执行）
-        if not hasattr(req, "_original_prompt"):
-            logger.debug(f"未找到原始prompt，跳过替换")
+            logger.debug(f"自定义主动回复插件：主动回复功能未启用，跳过处理")
             return
         
         # 从配置中读取替换提示词
         replace_text = self.config.get("activate_reply_prompt", "")
         # 只有当替换文本不为空时才进行替换
         if not replace_text.strip():
-            logger.debug(f"替换文本为空，跳过替换")
+            logger.debug(f"自定义主动回复插件：替换文本为空，跳过替换")
             return
         
-        # 在req.prompt中查找并替换提示词（因为long_term_memory.py将所有内容放入了prompt）
-        match = re.search(r'(?i)please react to it.*\Z', req.prompt)
+        # 检查prompt是否包含需要替换的模式
+        # 使用更宽松的正则表达式，匹配整个提示词结尾部分
+        match = re.search(r'(?i)please react to it(?:.*?language)?\.?, req.prompt, re.DOTALL)
         if match:
             req.prompt = req.prompt[:match.start()] + replace_text
-            logger.info(f"已替换为自定义主动回复提示词")
+            logger.info(f"自定义主动回复插件：已成功替换提示词")
         else:
-            logger.debug(f"未找到需要替换的提示词模式")
-            # 清理临时属性
-        # 清理临时属性
-        if hasattr(req, "_original_prompt"):
-            delattr(req, "_original_prompt") 
+            # 输出调试信息，帮助诊断问题
+            prompt_preview = req.prompt[-100:] if len(req.prompt) > 100 else req.prompt
+            logger.debug(f"自定义主动回复插件：未找到需要替换的提示词模式，prompt结尾：{prompt_preview}")
 
     async def terminate(self): 
         """插件卸载时的清理工作"""
