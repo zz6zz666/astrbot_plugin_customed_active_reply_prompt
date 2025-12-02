@@ -25,7 +25,7 @@ class CustomedReplyPromptPlugin(Star):
             logger.error(f"获取主动回复配置失败: {e}") 
             return False 
 
-    @filter.on_llm_request(priority=-10)    # 优先级设为-10，确保在long_term_memory.py之后执行 
+    @filter.on_llm_request(priority=-100)    # 优先级设为-100，确保在long_term_memory处理之后执行 
     async def replace_reply_prompt(self, event: AstrMessageEvent, req: ProviderRequest, *args, **kwargs):
         """
         在long_term_memory.py处理后，替换主动回复提示词
@@ -40,11 +40,6 @@ class CustomedReplyPromptPlugin(Star):
             logger.debug(f"主动回复功能未启用，跳过提示词替换")
             return
         
-        # 检查是否有原始prompt（说明前置处理已经执行）
-        if not hasattr(req, "_original_prompt"):
-            logger.debug(f"未找到原始prompt，跳过替换")
-            return
-        
         # 从配置中读取替换提示词
         replace_text = self.config.get("activate_reply_prompt", "")
         # 只有当替换文本不为空时才进行替换
@@ -52,17 +47,14 @@ class CustomedReplyPromptPlugin(Star):
             logger.debug(f"替换文本为空，跳过替换")
             return
         
-        # 在req.prompt中查找并替换提示词（因为long_term_memory.py将所有内容放入了prompt）
+        # 匹配LTM中设置的提示词格式，定位到"please react to it"处
         match = re.search(r'(?i)please react to it.*\Z', req.prompt)
         if match:
-            req.prompt = req.prompt[:match.start()] + replace_text
-            logger.info(f"已替换为自定义主动回复提示词")
+            # 替换整个提示词部分
+            req.prompt = req.prompt[:match.start(1)] + replace_text
+            logger.info(f"已替换自定义主动回复提示词")
         else:
-            logger.debug(f"未找到需要替换的提示词模式")
-            # 清理临时属性
-        # 清理临时属性
-        if hasattr(req, "_original_prompt"):
-            delattr(req, "_original_prompt") 
+            logger.debug(f"未找到LTM添加的主动回复提示词模式")
 
     async def terminate(self): 
         """插件卸载时的清理工作"""
