@@ -51,7 +51,7 @@ class CustomedReplyPromptPlugin(Star):
         match = re.search(r'(?i)please react to it.*\Z', req.prompt)
         if match:
             # 替换整个提示词部分
-            req.prompt = req.prompt[:match.start(1)] + replace_text
+            req.prompt = req.prompt[:match.start()] + replace_text
             logger.info(f"已替换自定义主动回复提示词")
         else:
             logger.debug(f"未找到LTM添加的主动回复提示词模式")
